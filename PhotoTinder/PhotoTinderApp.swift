@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct PhotoTinderApp: App {
+    @State private var photoLibrary = PhotoLibraryService()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(photoLibrary)
         }
     }
 }
