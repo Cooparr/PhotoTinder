@@ -10,6 +10,7 @@ struct MainSwipeView: View {
     @Query private var allDecisions: [AssetDecision]
 
     @State private var assets: [PHAsset] = []
+    @State private var totalLibraryCount: Int = 0
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGSize = .zero
     @State private var crossedThreshold: Bool = false
@@ -21,6 +22,19 @@ struct MainSwipeView: View {
 
     private var pendingDeleteIdentifiers: [String] {
         allDecisions.filter { $0.decision == .pendingDelete }.map(\.localIdentifier)
+    }
+
+    private var reviewedCount: Int {
+        max(0, totalLibraryCount - assets.count + currentIndex)
+    }
+
+    private var progress: Double {
+        guard totalLibraryCount > 0 else { return 0 }
+        return Double(reviewedCount) / Double(totalLibraryCount)
+    }
+
+    private var hasCards: Bool {
+        currentIndex < assets.count
     }
 
     private let commitThreshold: CGFloat = 120
@@ -72,27 +86,30 @@ struct MainSwipeView: View {
     }
 
     private var header: some View {
-        ZStack {
+        HStack(spacing: 8) {
+            Spacer().frame(width: 44)
             counterText
-            HStack {
-                Spacer()
-                undoButton
-            }
+                .frame(maxWidth: .infinity)
+            undoButton
+                .frame(width: 44)
         }
         .padding(.horizontal, 16)
-        .frame(height: 44)
     }
 
     @ViewBuilder
     private var counterText: some View {
         if !hasLoaded {
             Text("Loading library…").foregroundStyle(.secondary)
-        } else if assets.isEmpty {
-            Text("Nothing left to review").foregroundStyle(.secondary)
+        } else if totalLibraryCount == 0 {
+            Text("No photos found").foregroundStyle(.secondary)
         } else {
-            Text("\(min(currentIndex + 1, assets.count)) of \(assets.count)")
-                .font(.headline.monospacedDigit())
-                .foregroundStyle(.secondary)
+            VStack(spacing: 4) {
+                Text("\(reviewedCount.formatted()) of \(totalLibraryCount.formatted()) reviewed")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                ProgressView(value: progress)
+                    .frame(width: 160)
+            }
         }
     }
 
@@ -106,16 +123,21 @@ struct MainSwipeView: View {
         .disabled(sessionUndoStack.isEmpty || isCommitting)
     }
 
+    @ViewBuilder
     private var cardStack: some View {
-        ZStack {
-            peekCard.offset(y: 20).scaleEffect(0.88)
-            peekCard.offset(y: 10).scaleEffect(0.94)
-            topCard
+        if hasCards {
+            ZStack {
+                peekCard.offset(y: 20).scaleEffect(0.88)
+                peekCard.offset(y: 10).scaleEffect(0.94)
+                topCard
+            }
+            .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
+                !old && new
+            }
+            .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex)
+        } else if hasLoaded {
+            caughtUpState
         }
-        .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
-            !old && new
-        }
-        .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex)
     }
 
     private var peekCard: some View {
@@ -124,38 +146,36 @@ struct MainSwipeView: View {
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
     }
 
-    @ViewBuilder
     private var topCard: some View {
-        if currentIndex < assets.count {
-            let asset = assets[currentIndex]
-            AssetCardView(asset: asset)
-                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay(alignment: .center) { decisionOverlay }
-                .rotationEffect(.degrees(rotationDegrees))
-                .offset(dragOffset)
-                .onTapGesture {
-                    previewedAsset = PreviewedAsset(asset: asset)
-                }
-                .gesture(dragGesture)
-                .id(asset.localIdentifier)
-        } else if hasLoaded {
-            allCaughtUpCard
-        }
+        let asset = assets[currentIndex]
+        return AssetCardView(asset: asset)
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
+            .overlay(alignment: .center) { decisionOverlay }
+            .rotationEffect(.degrees(rotationDegrees))
+            .offset(dragOffset)
+            .onTapGesture {
+                previewedAsset = PreviewedAsset(asset: asset)
+            }
+            .gesture(dragGesture)
+            .id(asset.localIdentifier)
     }
 
-    private var allCaughtUpCard: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(Color(.systemGray6))
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .overlay {
-                VStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
-                    Text("All caught up")
-                        .font(.title2.bold())
-                }
-            }
+    private var caughtUpState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 72))
+                .foregroundStyle(.tint)
+            Text("You're all caught up")
+                .font(.title.bold())
+            Text(totalLibraryCount == 0
+                 ? "There are no photos in your library yet."
+                 : "You've reviewed every photo in your library. Come back after taking more.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var rotationDegrees: Double {
@@ -241,6 +261,7 @@ struct MainSwipeView: View {
     private func loadInitial() async {
         let decided = decisionStore.decidedIdentifiers()
         let fetch = photoLibrary.fetchAssetsNewestFirst()
+        let total = fetch.count
         var undecided: [PHAsset] = []
         fetch.enumerateObjects { asset, _, _ in
             if !decided.contains(asset.localIdentifier) {
@@ -248,6 +269,7 @@ struct MainSwipeView: View {
             }
         }
         assets = undecided
+        totalLibraryCount = total
         currentIndex = 0
         hasLoaded = true
     }
