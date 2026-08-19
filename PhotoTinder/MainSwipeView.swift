@@ -7,6 +7,8 @@ struct MainSwipeView: View {
     @Environment(PhotoLibraryService.self) private var photoLibrary
     @Environment(\.modelContext) private var modelContext
 
+    @Query private var allDecisions: [AssetDecision]
+
     @State private var assets: [PHAsset] = []
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGSize = .zero
@@ -14,6 +16,11 @@ struct MainSwipeView: View {
     @State private var hasLoaded: Bool = false
     @State private var sessionUndoStack: [String] = []
     @State private var isCommitting: Bool = false
+    @State private var showingReview: Bool = false
+
+    private var pendingDeleteIdentifiers: [String] {
+        allDecisions.filter { $0.decision == .pendingDelete }.map(\.localIdentifier)
+    }
 
     private let commitThreshold: CGFloat = 120
 
@@ -29,7 +36,32 @@ struct MainSwipeView: View {
                 .frame(maxHeight: .infinity)
         }
         .padding(.vertical, 16)
+        .safeAreaInset(edge: .bottom) {
+            if !pendingDeleteIdentifiers.isEmpty {
+                reviewButton
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+        }
         .task { await loadInitial() }
+        .sheet(isPresented: $showingReview) {
+            PendingDeleteReviewView(identifiers: pendingDeleteIdentifiers)
+        }
+    }
+
+    private var reviewButton: some View {
+        Button {
+            showingReview = true
+        } label: {
+            HStack {
+                Image(systemName: "trash.fill")
+                Text("Delete \(pendingDeleteIdentifiers.count) \(pendingDeleteIdentifiers.count == 1 ? "photo" : "photos")")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .tint(.red)
     }
 
     private var header: some View {
