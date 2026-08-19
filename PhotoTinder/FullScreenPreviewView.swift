@@ -32,7 +32,7 @@ struct FullScreenPreviewView: View {
                 .gesture(dragGesture)
                 .simultaneousGesture(pinchGesture)
                 .onTapGesture(count: 2) { toggleZoom() }
-            closeButton
+            overlayControls
         }
         .task { await loadContent() }
         .onDisappear { player?.pause() }
@@ -60,23 +60,49 @@ struct FullScreenPreviewView: View {
         }
     }
 
-    private var closeButton: some View {
+    private var overlayControls: some View {
         VStack {
             HStack {
-                Button {
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
+                dismissButton
                 Spacer()
+                shareButton
             }
             .padding()
             Spacer()
         }
+    }
+
+    private var dismissButton: some View {
+        Button {
+            onDismiss()
+        } label: {
+            controlIcon("xmark")
+        }
+    }
+
+    @ViewBuilder
+    private var shareButton: some View {
+        if asset.mediaType == .image, let image {
+            ShareLink(
+                item: Image(uiImage: image),
+                preview: SharePreview("Photo", image: Image(uiImage: image))
+            ) {
+                controlIcon("square.and.arrow.up")
+            }
+        } else if asset.mediaType == .video,
+                  let url = (player?.currentItem?.asset as? AVURLAsset)?.url {
+            ShareLink(item: url) {
+                controlIcon("square.and.arrow.up")
+            }
+        }
+    }
+
+    private func controlIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.headline)
+            .foregroundStyle(.white)
+            .padding(10)
+            .background(.ultraThinMaterial, in: Circle())
     }
 
     private var pinchGesture: some Gesture {
