@@ -17,6 +17,7 @@ struct MainSwipeView: View {
     @State private var sessionUndoStack: [String] = []
     @State private var isCommitting: Bool = false
     @State private var showingReview: Bool = false
+    @State private var previewedAsset: PreviewedAsset?
 
     private var pendingDeleteIdentifiers: [String] {
         allDecisions.filter { $0.decision == .pendingDelete }.map(\.localIdentifier)
@@ -46,6 +47,12 @@ struct MainSwipeView: View {
         .task { await loadInitial() }
         .sheet(isPresented: $showingReview) {
             PendingDeleteReviewView(identifiers: pendingDeleteIdentifiers)
+        }
+        .fullScreenCover(item: $previewedAsset) { item in
+            FullScreenPreviewView(asset: item.asset) {
+                previewedAsset = nil
+            }
+            .environment(photoLibrary)
         }
     }
 
@@ -126,6 +133,9 @@ struct MainSwipeView: View {
                 .overlay(alignment: .center) { decisionOverlay }
                 .rotationEffect(.degrees(rotationDegrees))
                 .offset(dragOffset)
+                .onTapGesture {
+                    previewedAsset = PreviewedAsset(asset: asset)
+                }
                 .gesture(dragGesture)
                 .id(asset.localIdentifier)
         } else if hasLoaded {
@@ -241,6 +251,11 @@ struct MainSwipeView: View {
         currentIndex = 0
         hasLoaded = true
     }
+}
+
+struct PreviewedAsset: Identifiable {
+    let asset: PHAsset
+    var id: String { asset.localIdentifier }
 }
 
 #Preview {
