@@ -1,16 +1,23 @@
 import Photos
+import SwiftData
 import SwiftUI
 import UIKit
 
 struct MainSwipeView: View {
     @Environment(PhotoLibraryService.self) private var photoLibrary
+    @Environment(\.modelContext) private var modelContext
 
-    @State private var fetchResult: PHFetchResult<PHAsset>?
+    @State private var assets: [PHAsset] = []
     @State private var currentIndex: Int = 0
     @State private var dragOffset: CGSize = .zero
     @State private var crossedThreshold: Bool = false
+    @State private var hasLoaded: Bool = false
 
     private let commitThreshold: CGFloat = 120
+
+    private var decisionStore: DecisionStore {
+        DecisionStore(context: modelContext)
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -25,16 +32,14 @@ struct MainSwipeView: View {
 
     private var header: some View {
         Group {
-            if let fetchResult {
-                if fetchResult.count == 0 {
-                    Text("No photos found").foregroundStyle(.secondary)
-                } else {
-                    Text("\(min(currentIndex + 1, fetchResult.count)) of \(fetchResult.count)")
-                        .font(.headline.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            } else {
+            if !hasLoaded {
                 Text("Loading library…").foregroundStyle(.secondary)
+            } else if assets.isEmpty {
+                Text("Nothing left to review").foregroundStyle(.secondary)
+            } else {
+                Text("\(min(currentIndex + 1, assets.count)) of \(assets.count)")
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -59,8 +64,8 @@ struct MainSwipeView: View {
 
     @ViewBuilder
     private var topCard: some View {
-        if let fetchResult, currentIndex < fetchResult.count {
-            let asset = fetchResult.object(at: currentIndex)
+        if currentIndex < assets.count {
+            let asset = assets[currentIndex]
             AssetCardView(asset: asset)
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
                 .overlay(alignment: .center) { decisionOverlay }
@@ -68,7 +73,7 @@ struct MainSwipeView: View {
                 .offset(dragOffset)
                 .gesture(dragGesture)
                 .id(asset.localIdentifier)
-        } else if fetchResult != nil {
+        } else if hasLoaded {
             allCaughtUpCard
         }
     }
@@ -138,10 +143,10 @@ struct MainSwipeView: View {
     }
 
     private func commit(direction: SwipeDirection) {
-        guard let fetchResult, currentIndex < fetchResult.count else { return }
-        let asset = fetchResult.object(at: currentIndex)
-        let mediaLabel = asset.mediaType == .video ? "video" : "image"
-        print("[\(direction == .keep ? "keep" : "delete")] \(asset.localIdentifier) (\(mediaLabel))")
+        guard currentIndex < assets.count else { return }
+        let asset = assets[currentIndex]
+        let decision: DecisionKind = direction == .keep ? .kept : .pendingDelete
+        decisionStore.record(localIdentifier: asset.localIdentifier, decision: decision)
 
         let offX: CGFloat = direction == .keep ? 1000 : -1000
         withAnimation(.easeOut(duration: 0.25)) {
@@ -157,12 +162,22 @@ struct MainSwipeView: View {
     }
 
     private func loadInitial() async {
-        fetchResult = photoLibrary.fetchAssetsNewestFirst()
+        let decided = decisionStore.decidedIdentifiers()
+        let fetch = photoLibrary.fetchAssetsNewestFirst()
+        var undecided: [PHAsset] = []
+        fetch.enumerateObjects { asset, _, _ in
+            if !decided.contains(asset.localIdentifier) {
+                undecided.append(asset)
+            }
+        }
+        assets = undecided
         currentIndex = 0
+        hasLoaded = true
     }
 }
 
 #Preview {
     MainSwipeView()
         .environment(PhotoLibraryService())
+        .modelContainer(for: AssetDecision.self, inMemory: true)
 }

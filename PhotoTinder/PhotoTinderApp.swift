@@ -5,6 +5,7 @@
 //  Created by Alexander Cooper on 19/08/2026.
 //
 
+import SwiftData
 import SwiftUI
 
 @main
@@ -16,5 +17,6 @@ struct PhotoTinderApp: App {
             RootView()
                 .environment(photoLibrary)
         }
+        .modelContainer(for: AssetDecision.self)
     }
 }
