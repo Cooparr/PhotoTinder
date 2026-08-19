@@ -12,6 +12,8 @@ struct MainSwipeView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var crossedThreshold: Bool = false
     @State private var hasLoaded: Bool = false
+    @State private var sessionUndoStack: [String] = []
+    @State private var isCommitting: Bool = false
 
     private let commitThreshold: CGFloat = 120
 
@@ -31,17 +33,38 @@ struct MainSwipeView: View {
     }
 
     private var header: some View {
-        Group {
-            if !hasLoaded {
-                Text("Loading library…").foregroundStyle(.secondary)
-            } else if assets.isEmpty {
-                Text("Nothing left to review").foregroundStyle(.secondary)
-            } else {
-                Text("\(min(currentIndex + 1, assets.count)) of \(assets.count)")
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+        ZStack {
+            counterText
+            HStack {
+                Spacer()
+                undoButton
             }
         }
+        .padding(.horizontal, 16)
+        .frame(height: 44)
+    }
+
+    @ViewBuilder
+    private var counterText: some View {
+        if !hasLoaded {
+            Text("Loading library…").foregroundStyle(.secondary)
+        } else if assets.isEmpty {
+            Text("Nothing left to review").foregroundStyle(.secondary)
+        } else {
+            Text("\(min(currentIndex + 1, assets.count)) of \(assets.count)")
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var undoButton: some View {
+        Button {
+            undo()
+        } label: {
+            Image(systemName: "arrow.uturn.backward")
+                .font(.title3)
+        }
+        .disabled(sessionUndoStack.isEmpty || isCommitting)
     }
 
     private var cardStack: some View {
@@ -143,10 +166,12 @@ struct MainSwipeView: View {
     }
 
     private func commit(direction: SwipeDirection) {
-        guard currentIndex < assets.count else { return }
+        guard currentIndex < assets.count, !isCommitting else { return }
+        isCommitting = true
         let asset = assets[currentIndex]
         let decision: DecisionKind = direction == .keep ? .kept : .pendingDelete
         decisionStore.record(localIdentifier: asset.localIdentifier, decision: decision)
+        sessionUndoStack.append(asset.localIdentifier)
 
         let offX: CGFloat = direction == .keep ? 1000 : -1000
         withAnimation(.easeOut(duration: 0.25)) {
@@ -158,7 +183,17 @@ struct MainSwipeView: View {
             currentIndex += 1
             dragOffset = .zero
             crossedThreshold = false
+            isCommitting = false
         }
+    }
+
+    private func undo() {
+        guard !isCommitting,
+              let lastId = sessionUndoStack.popLast(),
+              currentIndex > 0
+        else { return }
+        decisionStore.remove(localIdentifier: lastId)
+        currentIndex -= 1
     }
 
     private func loadInitial() async {

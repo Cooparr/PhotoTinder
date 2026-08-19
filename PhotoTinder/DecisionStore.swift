@@ -30,4 +30,14 @@ struct DecisionStore {
         guard let all = try? context.fetch(descriptor) else { return [] }
         return all.filter { $0.decision == .pendingDelete }
     }
+
+    func remove(localIdentifier: String) {
+        let descriptor = FetchDescriptor<AssetDecision>(
+            predicate: #Predicate { $0.localIdentifier == localIdentifier }
+        )
+        if let existing = try? context.fetch(descriptor).first {
+            context.delete(existing)
+            try? context.save()
+        }
+    }
 }
