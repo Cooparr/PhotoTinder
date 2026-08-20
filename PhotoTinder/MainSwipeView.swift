@@ -208,7 +208,7 @@ struct MainSwipeView: View {
 
     private func cardView(for asset: PHAsset, depth: Int) -> some View {
         let isTop = depth == 0
-        return AssetCardView(asset: asset)
+        return AssetCardView(asset: asset, isTop: isTop)
             .overlay(alignment: .center) {
                 if isTop { decisionOverlay }
             }

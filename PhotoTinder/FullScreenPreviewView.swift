@@ -48,7 +48,7 @@ struct FullScreenPreviewView: View {
     private var content: some View {
         if asset.mediaType == .video, let player {
             VideoPlayer(player: player)
-                .aspectRatio(contentMode: .fit)
+                .aspectRatio(videoAspectRatio, contentMode: .fit)
         } else if let image {
             Image(uiImage: image)
                 .resizable()
@@ -60,15 +60,29 @@ struct FullScreenPreviewView: View {
         }
     }
 
+    private var videoAspectRatio: CGFloat {
+        guard asset.pixelHeight > 0 else { return 9.0 / 16.0 }
+        return CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
+    }
+
     private var overlayControls: some View {
         VStack {
             HStack {
                 dismissButton
                 Spacer()
-                shareButton
+                if asset.mediaType == .image {
+                    shareButton
+                }
             }
             .padding()
             Spacer()
+            if asset.mediaType == .video {
+                HStack {
+                    Spacer()
+                    shareButton
+                }
+                .padding()
+            }
         }
     }
 
