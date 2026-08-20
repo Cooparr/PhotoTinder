@@ -73,11 +73,11 @@ struct MainSwipeView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if !reviewableSessionIdentifiers.isEmpty {
-                reviewButton
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-            }
+            reviewButton
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .opacity(reviewableSessionIdentifiers.isEmpty ? 0 : 1)
+                .allowsHitTesting(!reviewableSessionIdentifiers.isEmpty)
         }
         .task { await loadInitial() }
         .sheet(isPresented: $showingReview) {
