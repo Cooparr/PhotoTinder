@@ -10,7 +10,7 @@ struct RootView: View {
             case .unknown:
                 PermissionPromptView()
             case .authorized, .limited:
-                MainSwipeView()
+                MainTabView()
             case .denied:
                 PermissionDeniedView()
             }

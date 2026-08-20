@@ -5,6 +5,7 @@ import UIKit
 
 struct MainSwipeView: View {
     @Environment(PhotoLibraryService.self) private var photoLibrary
+    @Environment(SessionState.self) private var sessionState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
 
@@ -16,22 +17,10 @@ struct MainSwipeView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var crossedThreshold: Bool = false
     @State private var hasLoaded: Bool = false
-    @State private var sessionUndoStack: [String] = []
     @State private var isCommitting: Bool = false
-    @State private var showingReview: Bool = false
-    @State private var showingSettings: Bool = false
     @State private var previewedAsset: PreviewedAsset?
 
     @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
-
-    private var deletedIdentifiers: Set<String> {
-        Set(allDecisions.filter { $0.decision == .deleted }.map(\.localIdentifier))
-    }
-
-    private var reviewableSessionIdentifiers: [String] {
-        let deleted = deletedIdentifiers
-        return sessionUndoStack.filter { !deleted.contains($0) }
-    }
 
     private var reviewedCount: Int {
         max(0, totalLibraryCount - assets.count + currentIndex)
@@ -72,23 +61,7 @@ struct MainSwipeView: View {
                     .padding(.top, 8)
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            reviewButton
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .opacity(reviewableSessionIdentifiers.isEmpty ? 0 : 1)
-                .allowsHitTesting(!reviewableSessionIdentifiers.isEmpty)
-        }
         .task { await loadInitial() }
-        .sheet(isPresented: $showingReview) {
-            SessionReviewView(
-                sessionIdentifiers: reviewableSessionIdentifiers,
-                onFinished: { sessionUndoStack.removeAll() }
-            )
-        }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
-        }
         .fullScreenCover(item: $previewedAsset) { item in
             FullScreenPreviewView(asset: item.asset) {
                 previewedAsset = nil
@@ -128,40 +101,16 @@ struct MainSwipeView: View {
         .buttonStyle(.plain)
     }
 
-    private var reviewButton: some View {
-        Button {
-            showingReview = true
-        } label: {
-            HStack {
-                Image(systemName: "list.bullet.rectangle.portrait.fill")
-                Text("Review (\(reviewableSessionIdentifiers.count))")
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
-    }
-
 
     private var header: some View {
         HStack(spacing: 8) {
-            settingsButton
-                .frame(width: 44)
+            Spacer().frame(width: 44)
             counterText
                 .frame(maxWidth: .infinity)
             undoButton
                 .frame(width: 44)
         }
         .padding(.horizontal, 16)
-    }
-
-    private var settingsButton: some View {
-        Button {
-            showingSettings = true
-        } label: {
-            Image(systemName: "gearshape.fill")
-                .font(.title3)
-        }
     }
 
     @ViewBuilder
@@ -188,7 +137,7 @@ struct MainSwipeView: View {
             Image(systemName: "arrow.uturn.backward.circle.fill")
                 .font(.title3)
         }
-        .disabled(sessionUndoStack.isEmpty || isCommitting)
+        .disabled(sessionState.isEmpty || isCommitting)
     }
 
     @ViewBuilder
@@ -298,7 +247,7 @@ struct MainSwipeView: View {
         let asset = assets[currentIndex]
         let decision: DecisionKind = direction == .keep ? .kept : .pendingDelete
         decisionStore.record(localIdentifier: asset.localIdentifier, decision: decision)
-        sessionUndoStack.append(asset.localIdentifier)
+        sessionState.append(asset.localIdentifier)
 
         let offX: CGFloat = direction == .keep ? 1000 : -1000
         withAnimation(.easeOut(duration: 0.25)) {
@@ -316,7 +265,7 @@ struct MainSwipeView: View {
 
     private func undo() {
         guard !isCommitting,
-              let lastId = sessionUndoStack.popLast(),
+              let lastId = sessionState.popLast(),
               currentIndex > 0
         else { return }
         decisionStore.remove(localIdentifier: lastId)
@@ -364,5 +313,6 @@ struct PreviewedAsset: Identifiable {
 #Preview {
     MainSwipeView()
         .environment(PhotoLibraryService())
+        .environment(SessionState())
         .modelContainer(for: AssetDecision.self, inMemory: true)
 }

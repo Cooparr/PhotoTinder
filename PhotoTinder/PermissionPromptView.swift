@@ -22,15 +22,26 @@ struct PermissionPromptView: View {
 
             Spacer()
 
-            Button {
-                Task { await photoLibrary.requestAccess() }
-            } label: {
-                Text("Grant Photo Access")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+            VStack(spacing: 12) {
+                Button {
+                    Task { await photoLibrary.requestAccess() }
+                } label: {
+                    Text("Grant Photo Access")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                VStack(spacing: 8) {
+                    Text("Your photos stay on your device.\nWe don't store, back up, or copy them anywhere.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                    Image(systemName: "lock.shield.fill")
+                        .font(.title2)
+                }
+                .foregroundStyle(.secondary)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
         }
         .padding(32)
     }
