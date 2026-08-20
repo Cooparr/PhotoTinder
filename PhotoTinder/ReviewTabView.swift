@@ -11,6 +11,7 @@ struct ReviewTabView: View {
 
     @State private var isDeleting: Bool = false
     @State private var errorMessage: String?
+    @State private var stickyIdentifiers: Set<String> = []
 
     private let columns = [GridItem(.adaptive(minimum: 100), spacing: 8)]
 
@@ -18,9 +19,21 @@ struct ReviewTabView: View {
         let sessionIds = Set(sessionState.swipedIdentifiers)
         return allDecisions.filter { record in
             record.decision == .pendingDelete ||
+            stickyIdentifiers.contains(record.localIdentifier) ||
             (record.decision == .kept && sessionIds.contains(record.localIdentifier))
         }
         .sorted { $0.decidedAt > $1.decidedAt }
+    }
+
+    private var currentlyVisibleIdentifiers: Set<String> {
+        let sessionIds = Set(sessionState.swipedIdentifiers)
+        return Set(allDecisions.compactMap { record -> String? in
+            if record.decision == .pendingDelete { return record.localIdentifier }
+            if record.decision == .kept && sessionIds.contains(record.localIdentifier) {
+                return record.localIdentifier
+            }
+            return nil
+        })
     }
 
     private var pendingDeleteCount: Int {
@@ -38,6 +51,12 @@ struct ReviewTabView: View {
             }
             .navigationTitle("Review")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                stickyIdentifiers = currentlyVisibleIdentifiers
+            }
+            .onDisappear {
+                stickyIdentifiers = []
+            }
             .safeAreaInset(edge: .bottom) {
                 bottomBar
                     .padding(.horizontal, 16)
@@ -111,8 +130,6 @@ struct ReviewTabView: View {
     private func toggleDecision(for record: AssetDecision) {
         let newDecision: DecisionKind = record.decision == .pendingDelete ? .kept : .pendingDelete
         record.decision = newDecision
-        record.decidedAt = .now
-        try? modelContext.save()
     }
 
     private func confirmDelete() async {
@@ -153,36 +170,36 @@ private struct ReviewGridItem: View {
 
     @Environment(PhotoLibraryService.self) private var photoLibrary
     @Environment(\.displayScale) private var displayScale
+    @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
 
     @State private var image: UIImage?
     @State private var asset: PHAsset?
 
     var body: some View {
-        Button(action: onToggle) {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(.systemGray6))
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    if let image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    }
+        RoundedRectangle(cornerRadius: 10)
+            .fill(Color(.systemGray6))
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay {
-                    if record.decision == .pendingDelete {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(.red.opacity(0.25))
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
-                    decisionBadge
-                        .padding(6)
-                }
-        }
-        .buttonStyle(.plain)
-        .task(id: record.localIdentifier) {
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.red.opacity(record.decision == .pendingDelete ? 0.25 : 0))
+            }
+            .overlay(alignment: .topTrailing) {
+                decisionBadge
+                    .padding(6)
+            }
+            .animation(.snappy(duration: 0.15), value: record.decision)
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+            .onTapGesture { onToggle() }
+            .sensoryFeedback(.selection, trigger: record.decision) { _, _ in hapticsEnabled }
+            .task(id: record.localIdentifier) {
             let fetch = PHAsset.fetchAssets(withLocalIdentifiers: [record.localIdentifier], options: nil)
             var found: PHAsset?
             fetch.enumerateObjects { asset, _, _ in
