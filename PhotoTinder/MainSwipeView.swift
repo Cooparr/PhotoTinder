@@ -40,7 +40,7 @@ struct MainSwipeView: View {
         return Array(assets[currentIndex..<end])
     }
 
-    private let commitThreshold: CGFloat = 120
+    private let commitThreshold: CGFloat = 80
 
     private var decisionStore: DecisionStore {
         DecisionStore(context: modelContext)
