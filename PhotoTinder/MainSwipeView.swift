@@ -262,12 +262,28 @@ struct MainSwipeView: View {
         let decided = decisionStore.decidedIdentifiers()
         let fetch = photoLibrary.fetchAssetsNewestFirst()
         let total = fetch.count
+        var existingIdentifiers: Set<String> = []
         var undecided: [PHAsset] = []
         fetch.enumerateObjects { asset, _, _ in
+            existingIdentifiers.insert(asset.localIdentifier)
             if !decided.contains(asset.localIdentifier) {
                 undecided.append(asset)
             }
         }
+
+        // Sweep orphaned .pendingDelete records: the underlying PHAsset is
+        // already gone (e.g. deleted outside the app), so surface them as
+        // .deleted so they stop clogging the batch review pill.
+        let orphans = allDecisions.filter { record in
+            record.decision == .pendingDelete && !existingIdentifiers.contains(record.localIdentifier)
+        }
+        for record in orphans {
+            record.decision = .deleted
+        }
+        if !orphans.isEmpty {
+            try? modelContext.save()
+        }
+
         assets = undecided
         totalLibraryCount = total
         currentIndex = 0
