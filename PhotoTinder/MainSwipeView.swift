@@ -24,8 +24,13 @@ struct MainSwipeView: View {
 
     @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
 
-    private var pendingDeleteIdentifiers: [String] {
-        allDecisions.filter { $0.decision == .pendingDelete }.map(\.localIdentifier)
+    private var deletedIdentifiers: Set<String> {
+        Set(allDecisions.filter { $0.decision == .deleted }.map(\.localIdentifier))
+    }
+
+    private var reviewableSessionIdentifiers: [String] {
+        let deleted = deletedIdentifiers
+        return sessionUndoStack.filter { !deleted.contains($0) }
     }
 
     private var reviewedCount: Int {
@@ -68,7 +73,7 @@ struct MainSwipeView: View {
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if !pendingDeleteIdentifiers.isEmpty {
+            if !reviewableSessionIdentifiers.isEmpty {
                 reviewButton
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
@@ -76,7 +81,10 @@ struct MainSwipeView: View {
         }
         .task { await loadInitial() }
         .sheet(isPresented: $showingReview) {
-            PendingDeleteReviewView(identifiers: pendingDeleteIdentifiers)
+            SessionReviewView(
+                sessionIdentifiers: reviewableSessionIdentifiers,
+                onFinished: { sessionUndoStack.removeAll() }
+            )
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -125,15 +133,15 @@ struct MainSwipeView: View {
             showingReview = true
         } label: {
             HStack {
-                Image(systemName: "trash.fill")
-                Text("Delete \(pendingDeleteIdentifiers.count) \(pendingDeleteIdentifiers.count == 1 ? "photo" : "photos")")
+                Image(systemName: "list.bullet.rectangle.portrait.fill")
+                Text("Review (\(reviewableSessionIdentifiers.count))")
             }
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .tint(.red)
     }
+
 
     private var header: some View {
         HStack(spacing: 8) {

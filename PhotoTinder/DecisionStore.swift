@@ -10,6 +10,13 @@ struct DecisionStore {
         return Set(all.map(\.localIdentifier))
     }
 
+    func decision(for identifier: String) -> DecisionKind? {
+        let descriptor = FetchDescriptor<AssetDecision>(
+            predicate: #Predicate { $0.localIdentifier == identifier }
+        )
+        return (try? context.fetch(descriptor).first)?.decision
+    }
+
     func record(localIdentifier: String, decision: DecisionKind) {
         let descriptor = FetchDescriptor<AssetDecision>(
             predicate: #Predicate { $0.localIdentifier == localIdentifier }
