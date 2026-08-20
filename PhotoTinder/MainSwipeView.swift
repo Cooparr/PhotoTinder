@@ -121,7 +121,7 @@ struct MainSwipeView: View {
             Text("No photos found").foregroundStyle(.secondary)
         } else {
             VStack(spacing: 4) {
-                Text("\(reviewedCount.formatted()) of \(totalLibraryCount.formatted()) reviewed")
+                Text("\(reviewedCount.formatted())/\(totalLibraryCount.formatted())")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
                 ProgressView(value: progress)
