@@ -19,7 +19,10 @@ struct MainSwipeView: View {
     @State private var sessionUndoStack: [String] = []
     @State private var isCommitting: Bool = false
     @State private var showingReview: Bool = false
+    @State private var showingSettings: Bool = false
     @State private var previewedAsset: PreviewedAsset?
+
+    @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
 
     private var pendingDeleteIdentifiers: [String] {
         allDecisions.filter { $0.decision == .pendingDelete }.map(\.localIdentifier)
@@ -74,6 +77,9 @@ struct MainSwipeView: View {
         .task { await loadInitial() }
         .sheet(isPresented: $showingReview) {
             PendingDeleteReviewView(identifiers: pendingDeleteIdentifiers)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
         .fullScreenCover(item: $previewedAsset) { item in
             FullScreenPreviewView(asset: item.asset) {
@@ -131,13 +137,23 @@ struct MainSwipeView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Spacer().frame(width: 44)
+            settingsButton
+                .frame(width: 44)
             counterText
                 .frame(maxWidth: .infinity)
             undoButton
                 .frame(width: 44)
         }
         .padding(.horizontal, 16)
+    }
+
+    private var settingsButton: some View {
+        Button {
+            showingSettings = true
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.title3)
+        }
     }
 
     @ViewBuilder
@@ -177,9 +193,11 @@ struct MainSwipeView: View {
                 }
             }
             .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
-                !old && new
+                hapticsEnabled && !old && new
             }
-            .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex)
+            .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex) { _, _ in
+                hapticsEnabled
+            }
         } else if hasLoaded {
             caughtUpState
         }
