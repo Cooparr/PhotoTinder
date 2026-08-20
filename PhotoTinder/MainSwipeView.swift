@@ -159,7 +159,7 @@ struct MainSwipeView: View {
         Button {
             showingSettings = true
         } label: {
-            Image(systemName: "gearshape")
+            Image(systemName: "gearshape.fill")
                 .font(.title3)
         }
     }
@@ -185,7 +185,7 @@ struct MainSwipeView: View {
         Button {
             undo()
         } label: {
-            Image(systemName: "arrow.uturn.backward")
+            Image(systemName: "arrow.uturn.backward.circle.fill")
                 .font(.title3)
         }
         .disabled(sessionUndoStack.isEmpty || isCommitting)
