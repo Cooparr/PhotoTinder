@@ -32,8 +32,8 @@ struct FullScreenPreviewView: View {
                 .gesture(dragGesture)
                 .simultaneousGesture(pinchGesture)
                 .onTapGesture(count: 2) { toggleZoom() }
-            overlayControls
         }
+        .safeAreaInset(edge: .top) { topBar }
         .task { await loadContent() }
         .onDisappear { player?.pause() }
     }
@@ -65,25 +65,14 @@ struct FullScreenPreviewView: View {
         return CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
     }
 
-    private var overlayControls: some View {
-        VStack {
-            HStack {
-                dismissButton
-                Spacer()
-                if asset.mediaType == .image {
-                    shareButton
-                }
-            }
-            .padding()
+    private var topBar: some View {
+        HStack {
+            dismissButton
             Spacer()
-            if asset.mediaType == .video {
-                HStack {
-                    Spacer()
-                    shareButton
-                }
-                .padding()
-            }
+            shareButton
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     private var dismissButton: some View {
@@ -108,6 +97,9 @@ struct FullScreenPreviewView: View {
             ShareLink(item: url) {
                 controlIcon("square.and.arrow.up")
             }
+        } else {
+            controlIcon("square.and.arrow.up")
+                .opacity(0)
         }
     }
 
@@ -206,7 +198,10 @@ struct FullScreenPreviewView: View {
 
         if let avAsset {
             let item = AVPlayerItem(asset: avAsset)
-            player = AVPlayer(playerItem: item)
+            let newPlayer = AVPlayer(playerItem: item)
+            newPlayer.isMuted = true
+            player = newPlayer
+            newPlayer.play()
         }
     }
 }
