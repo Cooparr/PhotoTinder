@@ -6,6 +6,7 @@ import UIKit
 struct MainSwipeView: View {
     @Environment(PhotoLibraryService.self) private var photoLibrary
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     @Query private var allDecisions: [AssetDecision]
 
@@ -37,6 +38,11 @@ struct MainSwipeView: View {
         currentIndex < assets.count
     }
 
+    private var visibleCards: [PHAsset] {
+        let end = min(currentIndex + 3, assets.count)
+        return Array(assets[currentIndex..<end])
+    }
+
     private let commitThreshold: CGFloat = 120
 
     private var decisionStore: DecisionStore {
@@ -51,6 +57,13 @@ struct MainSwipeView: View {
                 .frame(maxHeight: .infinity)
         }
         .padding(.vertical, 16)
+        .safeAreaInset(edge: .top) {
+            if photoLibrary.authState == .limited {
+                limitedAccessBanner
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             if !pendingDeleteIdentifiers.isEmpty {
                 reviewButton
@@ -68,6 +81,37 @@ struct MainSwipeView: View {
             }
             .environment(photoLibrary)
         }
+    }
+
+    private var limitedAccessBanner: some View {
+        Button {
+            if let url = URL(string: "app-settings:") {
+                openURL(url)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Limited photo access")
+                        .font(.footnote.weight(.semibold))
+                    Text("Some photos are hidden. Tap to change in Settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(.orange.opacity(0.35), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var reviewButton: some View {
@@ -127,9 +171,10 @@ struct MainSwipeView: View {
     private var cardStack: some View {
         if hasCards {
             ZStack {
-                peekCard.offset(y: 20).scaleEffect(0.88)
-                peekCard.offset(y: 10).scaleEffect(0.94)
-                topCard
+                ForEach(Array(visibleCards.enumerated()), id: \.element.localIdentifier) { pair in
+                    cardView(for: pair.element, depth: pair.offset)
+                        .zIndex(Double(-pair.offset))
+                }
             }
             .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
                 !old && new
@@ -140,24 +185,25 @@ struct MainSwipeView: View {
         }
     }
 
-    private var peekCard: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(Color(.systemGray6))
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-    }
-
-    private var topCard: some View {
-        let asset = assets[currentIndex]
+    private func cardView(for asset: PHAsset, depth: Int) -> some View {
+        let isTop = depth == 0
         return AssetCardView(asset: asset)
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .overlay(alignment: .center) { decisionOverlay }
-            .rotationEffect(.degrees(rotationDegrees))
-            .offset(dragOffset)
+            .overlay(alignment: .center) {
+                if isTop { decisionOverlay }
+            }
+            .rotationEffect(.degrees(isTop ? rotationDegrees : 0))
+            .offset(
+                x: isTop ? dragOffset.width : 0,
+                y: isTop ? dragOffset.height : 0
+            )
             .onTapGesture {
-                previewedAsset = PreviewedAsset(asset: asset)
+                if isTop {
+                    previewedAsset = PreviewedAsset(asset: asset)
+                }
             }
             .gesture(dragGesture)
-            .id(asset.localIdentifier)
+            .allowsHitTesting(isTop)
     }
 
     private var caughtUpState: some View {
@@ -188,18 +234,12 @@ struct MainSwipeView: View {
         if x != 0 {
             let opacity = min(abs(x) / commitThreshold, 1)
             let isKeep = x > 0
+            let symbol = isKeep ? "checkmark.circle.fill" : "xmark.circle.fill"
             let color: Color = isKeep ? .green : .red
-            let text = isKeep ? "KEEP" : "DELETE"
-            Text(text)
-                .font(.system(size: 60, weight: .heavy))
-                .foregroundStyle(color)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(color, lineWidth: 5)
-                }
-                .rotationEffect(.degrees(isKeep ? -15 : 15))
+            Image(systemName: symbol)
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, color)
+                .font(.system(size: 90, weight: .bold))
                 .opacity(opacity)
         }
     }

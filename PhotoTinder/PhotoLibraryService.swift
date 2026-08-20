@@ -13,8 +13,19 @@ enum PhotoAuthState: Equatable {
 final class PhotoLibraryService {
     private(set) var authState: PhotoAuthState
 
+    @ObservationIgnored
+    private let imageCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 100 * 1024 * 1024
+        return cache
+    }()
+
     init() {
         authState = Self.map(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+    }
+
+    func cachedImage(for identifier: String) -> UIImage? {
+        imageCache.object(forKey: identifier as NSString)
     }
 
     func requestAccess() async {
@@ -40,8 +51,13 @@ final class PhotoLibraryService {
     }
 
     func requestImage(for asset: PHAsset, targetSize: CGSize) async -> UIImage? {
+        let key = asset.localIdentifier as NSString
+        if let cached = imageCache.object(forKey: key) {
+            return cached
+        }
+
         let gate = ResumeGate()
-        return await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+        let image: UIImage? = await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
             let options = PHImageRequestOptions()
             options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
@@ -57,6 +73,12 @@ final class PhotoLibraryService {
                 }
             }
         }
+
+        if let image {
+            let cost = Int(image.size.width * image.size.height * 4)
+            imageCache.setObject(image, forKey: key, cost: cost)
+        }
+        return image
     }
 
     private static func map(_ status: PHAuthorizationStatus) -> PhotoAuthState {

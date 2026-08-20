@@ -24,13 +24,18 @@ struct AssetCardView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(radius: 8)
+            .onChange(of: asset.localIdentifier, initial: true) {
+                image = photoLibrary.cachedImage(for: asset.localIdentifier)
+            }
             .task(id: asset.localIdentifier) {
-                image = nil
                 let size = CGSize(
                     width: 1000 * displayScale,
                     height: 1500 * displayScale
                 )
-                image = await photoLibrary.requestImage(for: asset, targetSize: size)
+                let loaded = await photoLibrary.requestImage(for: asset, targetSize: size)
+                if !Task.isCancelled, let loaded {
+                    image = loaded
+                }
             }
     }
 }
