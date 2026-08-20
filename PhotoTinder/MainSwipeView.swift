@@ -61,6 +61,9 @@ struct MainSwipeView: View {
                     .padding(.top, 8)
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            actionBar
+        }
         .task {
             guard !hasLoaded else { return }
             await loadInitial()
@@ -106,14 +109,9 @@ struct MainSwipeView: View {
 
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Spacer().frame(width: 44)
-            counterText
-                .frame(maxWidth: .infinity)
-            undoButton
-                .frame(width: 44)
-        }
-        .padding(.horizontal, 16)
+        counterText
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
     }
 
     @ViewBuilder
@@ -133,14 +131,51 @@ struct MainSwipeView: View {
         }
     }
 
-    private var undoButton: some View {
-        Button {
-            undo()
-        } label: {
-            Image(systemName: "arrow.uturn.backward.circle.fill")
-                .font(.title3)
+    private var actionBar: some View {
+        HStack(spacing: 32) {
+            decisionButton(systemImage: "xmark", tint: .red, accessibility: "Delete") {
+                commit(direction: .delete)
+            }
+            .disabled(!hasCards)
+
+            Button {
+                undo()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 52, height: 52)
+                    .background(Color(.secondarySystemBackground), in: Circle())
+            }
+            .buttonStyle(BounceButtonStyle())
+            .disabled(sessionState.isEmpty)
+            .accessibilityLabel("Undo")
+
+            decisionButton(systemImage: "checkmark", tint: .green, accessibility: "Keep") {
+                commit(direction: .keep)
+            }
+            .disabled(!hasCards)
         }
-        .disabled(sessionState.isEmpty)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func decisionButton(
+        systemImage: String,
+        tint: Color,
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 64, height: 64)
+                .background(tint, in: Circle())
+                .shadow(color: tint.opacity(0.35), radius: 6, y: 3)
+        }
+        .buttonStyle(BounceButtonStyle())
+        .accessibilityLabel(accessibility)
     }
 
     @ViewBuilder
@@ -340,6 +375,15 @@ struct OutgoingCard: Identifiable {
     var offset: CGSize
     var rotation: Double
     var id: String { asset.localIdentifier }
+}
+
+private struct BounceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
 }
 
 #Preview {
