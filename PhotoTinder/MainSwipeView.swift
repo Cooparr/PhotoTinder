@@ -17,8 +17,8 @@ struct MainSwipeView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var crossedThreshold: Bool = false
     @State private var hasLoaded: Bool = false
-    @State private var isCommitting: Bool = false
     @State private var previewedAsset: PreviewedAsset?
+    @State private var outgoing: OutgoingCard?
 
     @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
 
@@ -61,7 +61,10 @@ struct MainSwipeView: View {
                     .padding(.top, 8)
             }
         }
-        .task { await loadInitial() }
+        .task {
+            guard !hasLoaded else { return }
+            await loadInitial()
+        }
         .fullScreenCover(item: $previewedAsset) { item in
             FullScreenPreviewView(asset: item.asset) {
                 previewedAsset = nil
@@ -137,26 +140,34 @@ struct MainSwipeView: View {
             Image(systemName: "arrow.uturn.backward.circle.fill")
                 .font(.title3)
         }
-        .disabled(sessionState.isEmpty || isCommitting)
+        .disabled(sessionState.isEmpty)
     }
 
     @ViewBuilder
     private var cardStack: some View {
-        if hasCards {
-            ZStack {
+        ZStack {
+            if hasCards {
                 ForEach(Array(visibleCards.enumerated()), id: \.element.localIdentifier) { pair in
                     cardView(for: pair.element, depth: pair.offset)
                         .zIndex(Double(-pair.offset))
                 }
+            } else if hasLoaded && outgoing == nil {
+                caughtUpState
             }
-            .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
-                hapticsEnabled && !old && new
+
+            if let out = outgoing {
+                AssetCardView(asset: out.asset)
+                    .rotationEffect(.degrees(out.rotation))
+                    .offset(out.offset)
+                    .zIndex(100)
+                    .allowsHitTesting(false)
             }
-            .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex) { _, _ in
-                hapticsEnabled
-            }
-        } else if hasLoaded {
-            caughtUpState
+        }
+        .sensoryFeedback(.impact(weight: .medium), trigger: crossedThreshold) { old, new in
+            hapticsEnabled && !old && new
+        }
+        .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex) { _, _ in
+            hapticsEnabled
         }
     }
 
@@ -242,34 +253,48 @@ struct MainSwipeView: View {
     }
 
     private func commit(direction: SwipeDirection) {
-        guard currentIndex < assets.count, !isCommitting else { return }
-        isCommitting = true
+        guard currentIndex < assets.count else { return }
         let asset = assets[currentIndex]
         let decision: DecisionKind = direction == .keep ? .kept : .pendingDelete
         decisionStore.record(localIdentifier: asset.localIdentifier, decision: decision)
         sessionState.append(asset.localIdentifier)
 
+        let capturedOffset = dragOffset
+        let capturedRotation = rotationDegrees
+        let card = OutgoingCard(
+            asset: asset,
+            offset: capturedOffset,
+            rotation: capturedRotation
+        )
+        outgoing = card
+        currentIndex += 1
+        dragOffset = .zero
+        crossedThreshold = false
+
         let offX: CGFloat = direction == .keep ? 1000 : -1000
-        withAnimation(.easeOut(duration: 0.25)) {
-            dragOffset = CGSize(width: offX, height: dragOffset.height)
+        withAnimation(.easeOut(duration: 0.2)) {
+            if var current = outgoing, current.id == card.id {
+                current.offset = CGSize(width: offX, height: capturedOffset.height)
+                outgoing = current
+            }
         }
 
+        let capturedId = card.id
         Task {
-            try? await Task.sleep(for: .milliseconds(250))
-            currentIndex += 1
-            dragOffset = .zero
-            crossedThreshold = false
-            isCommitting = false
+            try? await Task.sleep(for: .milliseconds(220))
+            if outgoing?.id == capturedId {
+                outgoing = nil
+            }
         }
     }
 
     private func undo() {
-        guard !isCommitting,
-              let lastId = sessionState.popLast(),
+        guard let lastId = sessionState.popLast(),
               currentIndex > 0
         else { return }
         decisionStore.remove(localIdentifier: lastId)
         currentIndex -= 1
+        outgoing = nil
     }
 
     private func loadInitial() async {
@@ -307,6 +332,13 @@ struct MainSwipeView: View {
 
 struct PreviewedAsset: Identifiable {
     let asset: PHAsset
+    var id: String { asset.localIdentifier }
+}
+
+struct OutgoingCard: Identifiable {
+    let asset: PHAsset
+    var offset: CGSize
+    var rotation: Double
     var id: String { asset.localIdentifier }
 }
 
