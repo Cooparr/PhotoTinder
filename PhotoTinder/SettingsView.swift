@@ -23,17 +23,17 @@ struct SettingsView: View {
                             openURL(url)
                         }
                     } label: {
-                        Label("App Settings", systemImage: "gearshape")
+                        Label("App Settings", systemImage: "apps.iphone")
                     }
 
                     ShareLink(item: shareMessage) {
-                        Label("Share with friends", systemImage: "square.and.arrow.up")
+                        Label("Share with friends", systemImage: "square.and.arrow.up.fill")
                     }
 
                     Button {
                         requestReview()
                     } label: {
-                        Label("Rate PhotoTinder", systemImage: "star")
+                        Label("Rate PhotoTinder", systemImage: "star.fill")
                     }
                 }
             }
