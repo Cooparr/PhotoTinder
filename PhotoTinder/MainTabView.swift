@@ -11,7 +11,7 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             MainSwipeView()
-                .tabItem { Label("Swipe", systemImage: "photo.stack") }
+                .tabItem { Label("Swipe", systemImage: "photo.on.rectangle.angled.fill") }
 
             ReviewTabView()
                 .tabItem { Label("Review", systemImage: "list.bullet.rectangle.portrait") }
