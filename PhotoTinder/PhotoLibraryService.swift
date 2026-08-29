@@ -16,7 +16,7 @@ final class PhotoLibraryService {
     @ObservationIgnored
     private let imageCache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
-        cache.totalCostLimit = 100 * 1024 * 1024
+        cache.totalCostLimit = 400 * 1024 * 1024
         return cache
     }()
 

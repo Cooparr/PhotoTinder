@@ -191,7 +191,7 @@ struct MainSwipeView: View {
             }
 
             if let out = outgoing {
-                AssetCardView(asset: out.asset)
+                outgoingCardBody(for: out)
                     .rotationEffect(.degrees(out.rotation))
                     .offset(out.offset)
                     .zIndex(100)
@@ -204,6 +204,20 @@ struct MainSwipeView: View {
         .sensoryFeedback(.impact(weight: .heavy), trigger: currentIndex) { _, _ in
             hapticsEnabled
         }
+    }
+
+    private func outgoingCardBody(for card: OutgoingCard) -> some View {
+        RoundedRectangle(cornerRadius: 24)
+            .fill(Color(.systemGray6))
+            .overlay {
+                if let image = card.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(radius: 8)
     }
 
     private func cardView(for asset: PHAsset, depth: Int) -> some View {
@@ -299,7 +313,8 @@ struct MainSwipeView: View {
         let card = OutgoingCard(
             asset: asset,
             offset: capturedOffset,
-            rotation: capturedRotation
+            rotation: capturedRotation,
+            image: photoLibrary.cachedImage(for: asset.localIdentifier)
         )
         outgoing = card
         currentIndex += 1
@@ -307,16 +322,21 @@ struct MainSwipeView: View {
         crossedThreshold = false
 
         let offX: CGFloat = direction == .keep ? 1000 : -1000
-        withAnimation(.easeOut(duration: 0.2)) {
-            if var current = outgoing, current.id == card.id {
-                current.offset = CGSize(width: offX, height: capturedOffset.height)
-                outgoing = current
+        let targetRotation = Double(offX) / 15.0
+        let capturedId = card.id
+
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.2)) {
+                if var current = outgoing, current.id == capturedId {
+                    current.offset = CGSize(width: offX, height: capturedOffset.height)
+                    current.rotation = targetRotation
+                    outgoing = current
+                }
             }
         }
 
-        let capturedId = card.id
         Task {
-            try? await Task.sleep(for: .milliseconds(220))
+            try? await Task.sleep(for: .milliseconds(260))
             if outgoing?.id == capturedId {
                 outgoing = nil
             }
@@ -374,6 +394,7 @@ struct OutgoingCard: Identifiable {
     let asset: PHAsset
     var offset: CGSize
     var rotation: Double
+    let image: UIImage?
     var id: String { asset.localIdentifier }
 }
 
