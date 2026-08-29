@@ -75,7 +75,8 @@ final class PhotoLibraryService {
         }
 
         if let image {
-            let cost = Int(image.size.width * image.size.height * 4)
+            let scale = image.scale
+            let cost = Int(image.size.width * scale * image.size.height * scale * 4)
             imageCache.setObject(image, forKey: key, cost: cost)
         }
         return image
