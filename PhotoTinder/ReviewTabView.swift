@@ -154,6 +154,7 @@ struct ReviewTabView: View {
             for identifier in identifiersToDelete {
                 store.record(localIdentifier: identifier, decision: .deleted)
             }
+            stickyIdentifiers.subtract(identifiersToDelete)
             isDeleting = false
         } catch let phError as PHPhotosError where phError.code == .userCancelled {
             isDeleting = false
