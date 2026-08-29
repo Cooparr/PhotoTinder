@@ -133,16 +133,27 @@ struct ReviewTabView: View {
     }
 
     private func confirmDelete() async {
-        let identifiersToDelete = reviewableDecisions
+        let allIdentifiers = reviewableDecisions
             .filter { $0.decision == .pendingDelete }
             .map(\.localIdentifier)
-        guard !identifiersToDelete.isEmpty else { return }
+        guard !allIdentifiers.isEmpty else { return }
 
-        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: identifiersToDelete, options: nil)
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: allIdentifiers, options: nil)
         var assetsToDelete: [PHAsset] = []
         fetch.enumerateObjects { asset, _, _ in
             assetsToDelete.append(asset)
         }
+        let existingIdentifiers = Set(assetsToDelete.map(\.localIdentifier))
+        let orphanIdentifiers = allIdentifiers.filter { !existingIdentifiers.contains($0) }
+
+        let store = DecisionStore(context: modelContext)
+
+        // Records whose PHAsset is already gone — sweep them without prompting.
+        for identifier in orphanIdentifiers {
+            store.record(localIdentifier: identifier, decision: .deleted)
+        }
+        stickyIdentifiers.subtract(orphanIdentifiers)
+
         guard !assetsToDelete.isEmpty else { return }
 
         isDeleting = true
@@ -150,11 +161,11 @@ struct ReviewTabView: View {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetChangeRequest.deleteAssets(assetsToDelete as NSFastEnumeration)
             }
-            let store = DecisionStore(context: modelContext)
-            for identifier in identifiersToDelete {
+            let deletedIdentifiers = assetsToDelete.map(\.localIdentifier)
+            for identifier in deletedIdentifiers {
                 store.record(localIdentifier: identifier, decision: .deleted)
             }
-            stickyIdentifiers.subtract(identifiersToDelete)
+            stickyIdentifiers.subtract(deletedIdentifiers)
             isDeleting = false
         } catch let phError as PHPhotosError where phError.code == .userCancelled {
             isDeleting = false
