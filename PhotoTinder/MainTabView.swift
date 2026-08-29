@@ -14,7 +14,7 @@ struct MainTabView: View {
                 .tabItem { Label("Swipe", systemImage: "photo.on.rectangle.angled.fill") }
 
             ReviewTabView()
-                .tabItem { Label("Review", systemImage: "list.bullet.rectangle.portrait") }
+                .tabItem { Label("Review", systemImage: "list.bullet.clipboard.fill") }
                 .badge(pendingDeleteCount)
 
             SettingsView()
