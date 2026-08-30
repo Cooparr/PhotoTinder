@@ -9,6 +9,50 @@ enum PhotoAuthState: Equatable {
     case denied
 }
 
+enum SwipeSort: String, CaseIterable, Identifiable {
+    case newestFirst
+    case oldestFirst
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .newestFirst: return "Newest first"
+        case .oldestFirst: return "Oldest first"
+        }
+    }
+}
+
+enum MediaFilter: String, CaseIterable, Identifiable {
+    case all
+    case photos
+    case videos
+    case screenshots
+    case livePhotos
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .all: return "All"
+        case .photos: return "Photos"
+        case .videos: return "Videos"
+        case .screenshots: return "Screenshots"
+        case .livePhotos: return "Live Photos"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .all: return "photo.stack"
+        case .photos: return "photo"
+        case .videos: return "video"
+        case .screenshots: return "camera.viewfinder"
+        case .livePhotos: return "livephoto"
+        }
+    }
+}
+
 @Observable
 final class PhotoLibraryService {
     private(set) var authState: PhotoAuthState
@@ -37,17 +81,40 @@ final class PhotoLibraryService {
         authState = Self.map(PHPhotoLibrary.authorizationStatus(for: .readWrite))
     }
 
-    func fetchAssetsNewestFirst() -> PHFetchResult<PHAsset> {
+    func fetchAssets(sort: SwipeSort = .newestFirst, filter: MediaFilter = .all) -> PHFetchResult<PHAsset> {
         let options = PHFetchOptions()
         options.sortDescriptors = [
-            NSSortDescriptor(key: "creationDate", ascending: false)
+            NSSortDescriptor(key: "creationDate", ascending: sort == .oldestFirst)
         ]
-        options.predicate = NSPredicate(
-            format: "mediaType == %d || mediaType == %d",
-            PHAssetMediaType.image.rawValue,
-            PHAssetMediaType.video.rawValue
-        )
+        options.predicate = predicate(for: filter)
         return PHAsset.fetchAssets(with: options)
+    }
+
+    private func predicate(for filter: MediaFilter) -> NSPredicate {
+        switch filter {
+        case .all:
+            return NSPredicate(
+                format: "mediaType == %d || mediaType == %d",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaType.video.rawValue
+            )
+        case .photos:
+            return NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        case .videos:
+            return NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
+        case .screenshots:
+            return NSPredicate(
+                format: "mediaType == %d && (mediaSubtypes & %d) != 0",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaSubtype.photoScreenshot.rawValue
+            )
+        case .livePhotos:
+            return NSPredicate(
+                format: "mediaType == %d && (mediaSubtypes & %d) != 0",
+                PHAssetMediaType.image.rawValue,
+                PHAssetMediaSubtype.photoLive.rawValue
+            )
+        }
     }
 
     func requestImage(for asset: PHAsset, targetSize: CGSize) async -> UIImage? {

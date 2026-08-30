@@ -20,6 +20,9 @@ struct MainSwipeView: View {
     @State private var hasLoaded: Bool = false
     @State private var previewedAsset: PreviewedAsset?
     @State private var outgoing: OutgoingCard?
+    @State private var filter: MediaFilter = .all
+    @State private var sort: SwipeSort = .newestFirst
+    @State private var showingFilterSheet: Bool = false
 
     @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
 
@@ -73,6 +76,11 @@ struct MainSwipeView: View {
         .onChange(of: scenePhase) { _, new in
             if new == .active { refreshTotalCount() }
         }
+        .onChange(of: filter) { _, _ in applyFilterChange() }
+        .onChange(of: sort) { _, _ in applyFilterChange() }
+        .sheet(isPresented: $showingFilterSheet) {
+            FilterSheetView(filter: $filter, sort: $sort)
+        }
         .fullScreenCover(item: $previewedAsset) { item in
             FullScreenPreviewView(asset: item.asset) {
                 previewedAsset = nil
@@ -114,9 +122,29 @@ struct MainSwipeView: View {
 
 
     private var header: some View {
-        counterText
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
+        ZStack {
+            counterText
+            HStack {
+                Spacer()
+                filterButton
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var filterButton: some View {
+        Button {
+            showingFilterSheet = true
+        } label: {
+            Image(systemName: isFilterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                .font(.title2)
+                .foregroundStyle(.tint)
+        }
+        .accessibilityLabel("Filter and sort")
+    }
+
+    private var isFilterActive: Bool {
+        filter != .all || sort != .newestFirst
     }
 
     @ViewBuilder
@@ -359,15 +387,22 @@ struct MainSwipeView: View {
 
     private func refreshTotalCount() {
         guard hasLoaded else { return }
-        let newTotal = photoLibrary.fetchAssetsNewestFirst().count
+        let newTotal = photoLibrary.fetchAssets(sort: sort, filter: filter).count
         if newTotal != totalLibraryCount {
             totalLibraryCount = newTotal
         }
     }
 
+    private func applyFilterChange() {
+        hasLoaded = false
+        currentIndex = 0
+        outgoing = nil
+        Task { await loadInitial() }
+    }
+
     private func loadInitial() async {
         let decided = decisionStore.decidedIdentifiers()
-        let fetch = photoLibrary.fetchAssetsNewestFirst()
+        let fetch = photoLibrary.fetchAssets(sort: sort, filter: filter)
         let total = fetch.count
         var existingIdentifiers: Set<String> = []
         var undecided: [PHAsset] = []
