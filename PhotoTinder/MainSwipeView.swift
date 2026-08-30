@@ -19,7 +19,7 @@ struct MainSwipeView: View {
     @State private var crossedThreshold: Bool = false
     @State private var hasLoaded: Bool = false
     @State private var previewedAsset: PreviewedAsset?
-    @State private var outgoing: OutgoingCard?
+    @State private var outgoingCards: [OutgoingCard] = []
     @State private var filter: MediaFilter = .all
     @State private var sort: SwipeSort = .newestFirst
     @State private var showingFilterSheet: Bool = false
@@ -219,11 +219,11 @@ struct MainSwipeView: View {
                     cardView(for: pair.element, depth: pair.offset)
                         .zIndex(Double(-pair.offset))
                 }
-            } else if hasLoaded && outgoing == nil {
+            } else if hasLoaded && outgoingCards.isEmpty {
                 caughtUpState
             }
 
-            if let out = outgoing {
+            ForEach(outgoingCards) { out in
                 outgoingCardBody(for: out)
                     .rotationEffect(.degrees(out.rotation))
                     .offset(out.offset)
@@ -349,30 +349,27 @@ struct MainSwipeView: View {
             rotation: capturedRotation,
             image: photoLibrary.cachedImage(for: asset.localIdentifier)
         )
-        outgoing = card
+        outgoingCards.append(card)
         currentIndex += 1
         dragOffset = .zero
         crossedThreshold = false
 
-        let offX: CGFloat = direction == .keep ? 1000 : -1000
-        let targetRotation = Double(offX) / 15.0
+        let offX: CGFloat = direction == .keep ? 800 : -800
+        let targetRotation: Double = direction == .keep ? 18 : -18
         let capturedId = card.id
 
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.2)) {
-                if var current = outgoing, current.id == capturedId {
-                    current.offset = CGSize(width: offX, height: capturedOffset.height)
-                    current.rotation = targetRotation
-                    outgoing = current
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                if let idx = outgoingCards.firstIndex(where: { $0.id == capturedId }) {
+                    outgoingCards[idx].offset = CGSize(width: offX, height: capturedOffset.height + 40)
+                    outgoingCards[idx].rotation = targetRotation
                 }
             }
         }
 
         Task {
-            try? await Task.sleep(for: .milliseconds(260))
-            if outgoing?.id == capturedId {
-                outgoing = nil
-            }
+            try? await Task.sleep(for: .milliseconds(500))
+            outgoingCards.removeAll { $0.id == capturedId }
         }
     }
 
@@ -382,7 +379,7 @@ struct MainSwipeView: View {
         else { return }
         decisionStore.remove(localIdentifier: lastId)
         currentIndex -= 1
-        outgoing = nil
+        outgoingCards.removeAll()
     }
 
     private func refreshTotalCount() {
@@ -396,7 +393,7 @@ struct MainSwipeView: View {
     private func applyFilterChange() {
         hasLoaded = false
         currentIndex = 0
-        outgoing = nil
+        outgoingCards.removeAll()
         Task { await loadInitial() }
     }
 
