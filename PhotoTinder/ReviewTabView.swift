@@ -154,7 +154,7 @@ struct ReviewTabView: View {
 
         // Records whose PHAsset is already gone — sweep them without prompting.
         for identifier in orphanIdentifiers {
-            store.record(localIdentifier: identifier, decision: .deleted)
+            store.remove(localIdentifier: identifier)
         }
         stickyIdentifiers.subtract(orphanIdentifiers)
 
@@ -171,7 +171,7 @@ struct ReviewTabView: View {
             }
             let deletedIdentifiers = assetsToDelete.map(\.localIdentifier)
             for identifier in deletedIdentifiers {
-                store.record(localIdentifier: identifier, decision: .deleted)
+                store.remove(localIdentifier: identifier)
             }
             stickyIdentifiers.subtract(deletedIdentifiers)
             deletedPhotoCount += photoCount

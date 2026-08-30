@@ -378,16 +378,16 @@ struct MainSwipeView: View {
             }
         }
 
-        // Sweep orphaned .pendingDelete records: the underlying PHAsset is
-        // already gone (e.g. deleted outside the app), so surface them as
-        // .deleted so they stop clogging the batch review pill.
-        let orphans = allDecisions.filter { record in
-            record.decision == .pendingDelete && !existingIdentifiers.contains(record.localIdentifier)
+        // Drop orphaned .pendingDelete records (PHAsset gone from library)
+        // and any legacy .deleted records left over from before eager delete.
+        let toRemove = allDecisions.filter { record in
+            record.decision == .deleted ||
+            (record.decision == .pendingDelete && !existingIdentifiers.contains(record.localIdentifier))
         }
-        for record in orphans {
-            record.decision = .deleted
+        for record in toRemove {
+            modelContext.delete(record)
         }
-        if !orphans.isEmpty {
+        if !toRemove.isEmpty {
             try? modelContext.save()
         }
 
