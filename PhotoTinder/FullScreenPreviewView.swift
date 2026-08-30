@@ -29,9 +29,14 @@ struct FullScreenPreviewView: View {
                     x: offset.width,
                     y: offset.height + dismissOffset.height
                 )
-                .gesture(dragGesture)
-                .simultaneousGesture(pinchGesture)
-                .onTapGesture(count: 2) { toggleZoom() }
+                .allowsHitTesting(false)
+        }
+        .overlay {
+            PreviewGestureLayer(
+                onPinchPan: handlePinchPan,
+                onDrag: handleDrag,
+                onDoubleTap: toggleZoom
+            )
         }
         .safeAreaInset(edge: .top) { topBar }
         .task { await loadContent() }
@@ -111,46 +116,55 @@ struct FullScreenPreviewView: View {
             .background(.ultraThinMaterial, in: Circle())
     }
 
-    private var pinchGesture: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                scale = max(1, accumulatedScale * value.magnification)
-            }
-            .onEnded { _ in
-                withAnimation(.spring) {
-                    accumulatedScale = min(max(scale, 1), maxScale)
-                    scale = accumulatedScale
-                    if accumulatedScale == 1 {
-                        offset = .zero
-                        accumulatedOffset = .zero
-                    }
+    private func handlePinchPan(_ update: PreviewGestureLayer.PinchPanUpdate) {
+        switch update.phase {
+        case .began:
+            break
+        case .changed:
+            let target = accumulatedScale * update.scale
+            let newScale = min(max(target, 1), maxScale)
+            let ratio = newScale / accumulatedScale
+            let f = update.startCentroid
+            offset = CGSize(
+                width: update.translation.width + (1 - ratio) * f.x + ratio * accumulatedOffset.width,
+                height: update.translation.height + (1 - ratio) * f.y + ratio * accumulatedOffset.height
+            )
+            scale = newScale
+        case .ended:
+            withAnimation(.spring) {
+                accumulatedScale = scale
+                if accumulatedScale == 1 {
+                    offset = .zero
                 }
+                accumulatedOffset = offset
             }
+        }
     }
 
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                if scale > 1 {
-                    offset = CGSize(
-                        width: accumulatedOffset.width + value.translation.width,
-                        height: accumulatedOffset.height + value.translation.height
-                    )
-                } else if value.translation.height > 0 {
-                    dismissOffset = value.translation
+    private func handleDrag(_ update: PreviewGestureLayer.DragUpdate) {
+        switch update.phase {
+        case .began:
+            break
+        case .changed:
+            if scale > 1 {
+                offset = CGSize(
+                    width: accumulatedOffset.width + update.translation.width,
+                    height: accumulatedOffset.height + update.translation.height
+                )
+            } else if update.translation.height > 0 {
+                dismissOffset = update.translation
+            }
+        case .ended:
+            if scale > 1 {
+                accumulatedOffset = offset
+            } else if update.translation.height > 150 {
+                onDismiss()
+            } else {
+                withAnimation(.spring) {
+                    dismissOffset = .zero
                 }
             }
-            .onEnded { value in
-                if scale > 1 {
-                    accumulatedOffset = offset
-                } else if value.translation.height > 150 {
-                    onDismiss()
-                } else {
-                    withAnimation(.spring) {
-                        dismissOffset = .zero
-                    }
-                }
-            }
+        }
     }
 
     private func toggleZoom() {
@@ -202,6 +216,192 @@ struct FullScreenPreviewView: View {
             newPlayer.isMuted = true
             player = newPlayer
             newPlayer.play()
+        }
+    }
+}
+
+private struct PreviewGestureLayer: UIViewRepresentable {
+    struct PinchPanUpdate {
+        enum Phase { case began, changed, ended }
+        let phase: Phase
+        let scale: CGFloat
+        let translation: CGSize
+        let startCentroid: CGPoint
+    }
+    struct DragUpdate {
+        enum Phase { case began, changed, ended }
+        let phase: Phase
+        let translation: CGSize
+    }
+
+    let onPinchPan: (PinchPanUpdate) -> Void
+    let onDrag: (DragUpdate) -> Void
+    let onDoubleTap: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onPinchPan: onPinchPan,
+            onDrag: onDrag,
+            onDoubleTap: onDoubleTap
+        )
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isMultipleTouchEnabled = true
+
+        let pinch = UIPinchGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePinchPan(_:))
+        )
+        pinch.delegate = context.coordinator
+        view.addGestureRecognizer(pinch)
+
+        let twoPan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePinchPan(_:))
+        )
+        twoPan.minimumNumberOfTouches = 2
+        twoPan.maximumNumberOfTouches = 2
+        twoPan.delegate = context.coordinator
+        view.addGestureRecognizer(twoPan)
+
+        let onePan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleOnePan(_:))
+        )
+        onePan.minimumNumberOfTouches = 1
+        onePan.maximumNumberOfTouches = 1
+        onePan.delegate = context.coordinator
+        view.addGestureRecognizer(onePan)
+
+        let doubleTap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleDoubleTap(_:))
+        )
+        doubleTap.numberOfTapsRequired = 2
+        doubleTap.delegate = context.coordinator
+        view.addGestureRecognizer(doubleTap)
+
+        onePan.require(toFail: doubleTap)
+
+        context.coordinator.pinch = pinch
+        context.coordinator.twoPan = twoPan
+        context.coordinator.onePan = onePan
+        context.coordinator.hostView = view
+
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onPinchPan = onPinchPan
+        context.coordinator.onDrag = onDrag
+        context.coordinator.onDoubleTap = onDoubleTap
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onPinchPan: (PinchPanUpdate) -> Void
+        var onDrag: (DragUpdate) -> Void
+        var onDoubleTap: () -> Void
+
+        weak var pinch: UIPinchGestureRecognizer?
+        weak var twoPan: UIPanGestureRecognizer?
+        weak var onePan: UIPanGestureRecognizer?
+        weak var hostView: UIView?
+
+        private var pinchPanActive = false
+        private var startCentroid: CGPoint = .zero
+
+        init(
+            onPinchPan: @escaping (PinchPanUpdate) -> Void,
+            onDrag: @escaping (DragUpdate) -> Void,
+            onDoubleTap: @escaping () -> Void
+        ) {
+            self.onPinchPan = onPinchPan
+            self.onDrag = onDrag
+            self.onDoubleTap = onDoubleTap
+        }
+
+        // Let pinch + two-finger pan run simultaneously; keep single-finger pan
+        // and double-tap separate.
+        func gestureRecognizer(
+            _ gr: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+        ) -> Bool {
+            let ids = Set([ObjectIdentifier(gr), ObjectIdentifier(other)])
+            if let pinch, let twoPan,
+               ids == Set([ObjectIdentifier(pinch), ObjectIdentifier(twoPan)]) {
+                return true
+            }
+            return false
+        }
+
+        @objc func handlePinchPan(_ gr: UIGestureRecognizer) {
+            guard let pinch, let twoPan, let hostView else { return }
+
+            let pinchActive = pinch.state == .began || pinch.state == .changed
+            let panActive = twoPan.state == .began || twoPan.state == .changed
+            let anyActive = pinchActive || panActive
+
+            if !pinchPanActive && anyActive {
+                let center = CGPoint(x: hostView.bounds.midX, y: hostView.bounds.midY)
+                let raw = pinchActive ? pinch.location(in: hostView) : twoPan.location(in: hostView)
+                startCentroid = CGPoint(x: raw.x - center.x, y: raw.y - center.y)
+                pinchPanActive = true
+                onPinchPan(PinchPanUpdate(
+                    phase: .began,
+                    scale: 1,
+                    translation: .zero,
+                    startCentroid: startCentroid
+                ))
+            } else if pinchPanActive && anyActive {
+                let translation = twoPan.translation(in: hostView)
+                onPinchPan(PinchPanUpdate(
+                    phase: .changed,
+                    scale: pinch.scale,
+                    translation: CGSize(width: translation.x, height: translation.y),
+                    startCentroid: startCentroid
+                ))
+            } else if pinchPanActive && !anyActive {
+                let translation = twoPan.translation(in: hostView)
+                onPinchPan(PinchPanUpdate(
+                    phase: .ended,
+                    scale: pinch.scale,
+                    translation: CGSize(width: translation.x, height: translation.y),
+                    startCentroid: startCentroid
+                ))
+                pinch.scale = 1
+                twoPan.setTranslation(.zero, in: hostView)
+                pinchPanActive = false
+            }
+        }
+
+        @objc func handleOnePan(_ gr: UIPanGestureRecognizer) {
+            guard let hostView else { return }
+            let translation = gr.translation(in: hostView)
+            switch gr.state {
+            case .began:
+                onDrag(DragUpdate(phase: .began, translation: .zero))
+            case .changed:
+                onDrag(DragUpdate(
+                    phase: .changed,
+                    translation: CGSize(width: translation.x, height: translation.y)
+                ))
+            case .ended, .cancelled, .failed:
+                onDrag(DragUpdate(
+                    phase: .ended,
+                    translation: CGSize(width: translation.x, height: translation.y)
+                ))
+            default:
+                break
+            }
+        }
+
+        @objc func handleDoubleTap(_ gr: UITapGestureRecognizer) {
+            if gr.state == .recognized {
+                onDoubleTap()
+            }
         }
     }
 }
