@@ -1,0 +1,41 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSPhotoLibraryUsageDescription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wische durch deine Mediathek, um die guten Fotos zu behalten und den Rest wegzuwerfen. Fotos verlassen dieses Gerät nie – nichts wird hochgeladen, nichts wird gesichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe through your library to keep the good stuff and toss the rest. Photos never leave this device — nothing uploaded, nothing backed up."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desliza por tu biblioteca para conservar lo bueno y tirar el resto. Las fotos nunca salen de este dispositivo: no se sube nada ni se hace copia de seguridad de nada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balaie ta bibliothèque pour garder les meilleures photos et jeter le reste. Les photos ne quittent jamais cet appareil — rien n'est envoyé, rien n'est sauvegardé."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deslize pela sua biblioteca para manter as boas e jogar fora o resto. As fotos nunca saem deste dispositivo — nada é enviado, nada vai para backup."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

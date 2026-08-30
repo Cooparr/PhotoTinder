@@ -12,7 +12,7 @@ struct SettingsView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
 
-    private let shareMessage = "I'm using PhotoTinder to clean up my photo library — swipe left to trash, right to keep. Check it out."
+    private let shareMessage = String(localized: "I'm using PhotoTinder to clean up my photo library — swipe left to trash, right to keep. Check it out.")
 
     private var hasCleanupStats: Bool {
         deletedPhotoCount > 0 || deletedVideoCount > 0 || deletedBytes > 0
