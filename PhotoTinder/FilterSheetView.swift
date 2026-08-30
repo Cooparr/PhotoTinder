@@ -40,7 +40,7 @@ struct FilterSheetView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
     }
 
     private func row(

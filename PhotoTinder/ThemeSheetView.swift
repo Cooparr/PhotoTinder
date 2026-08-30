@@ -36,7 +36,7 @@ struct ThemeSheetView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
     }
 }
