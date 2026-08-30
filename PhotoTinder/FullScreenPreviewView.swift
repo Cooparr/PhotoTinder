@@ -31,10 +31,13 @@ struct FullScreenPreviewView: View {
                     y: offset.height + dismissOffset.height
                 )
                 .allowsHitTesting(false)
-        }
-        .overlay(alignment: .topLeading) {
             if isLivePhoto {
-                liveBadge.padding(16)
+                Color.clear
+                    .aspectRatio(mediaAspectRatio, contentMode: .fit)
+                    .overlay(alignment: .topLeading) {
+                        liveBadge.padding(12)
+                    }
+                    .allowsHitTesting(false)
             }
         }
         .overlay {
