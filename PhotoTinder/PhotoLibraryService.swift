@@ -21,6 +21,13 @@ enum SwipeSort: String, CaseIterable, Identifiable {
         case .oldestFirst: return "Oldest first"
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .newestFirst: return "arrow.down.to.line"
+        case .oldestFirst: return "arrow.up.to.line"
+        }
+    }
 }
 
 enum MediaFilter: String, CaseIterable, Identifiable {

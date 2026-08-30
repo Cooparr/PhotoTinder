@@ -24,7 +24,7 @@ struct FilterSheetView: View {
                     ForEach(SwipeSort.allCases) { option in
                         row(
                             label: option.label,
-                            symbol: nil,
+                            symbol: option.symbol,
                             isSelected: sort == option
                         ) {
                             sort = option
