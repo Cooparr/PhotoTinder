@@ -9,6 +9,10 @@ struct ReviewTabView: View {
 
     @Query private var allDecisions: [AssetDecision]
 
+    @AppStorage("deletedPhotoCount") private var deletedPhotoCount: Int = 0
+    @AppStorage("deletedVideoCount") private var deletedVideoCount: Int = 0
+    @AppStorage("deletedBytes") private var deletedBytes: Double = 0
+
     @State private var isDeleting: Bool = false
     @State private var errorMessage: String?
     @State private var stickyIdentifiers: Set<String> = []
@@ -156,6 +160,10 @@ struct ReviewTabView: View {
 
         guard !assetsToDelete.isEmpty else { return }
 
+        let photoCount = assetsToDelete.count { $0.mediaType == .image }
+        let videoCount = assetsToDelete.count { $0.mediaType == .video }
+        let bytesFreed = assetsToDelete.reduce(Int64(0)) { $0 + fileSize(of: $1) }
+
         isDeleting = true
         do {
             try await PHPhotoLibrary.shared().performChanges {
@@ -166,12 +174,22 @@ struct ReviewTabView: View {
                 store.record(localIdentifier: identifier, decision: .deleted)
             }
             stickyIdentifiers.subtract(deletedIdentifiers)
+            deletedPhotoCount += photoCount
+            deletedVideoCount += videoCount
+            deletedBytes += Double(bytesFreed)
             isDeleting = false
         } catch let phError as PHPhotosError where phError.code == .userCancelled {
             isDeleting = false
         } catch {
             errorMessage = error.localizedDescription
             isDeleting = false
+        }
+    }
+
+    private func fileSize(of asset: PHAsset) -> Int64 {
+        PHAssetResource.assetResources(for: asset).reduce(Int64(0)) { total, resource in
+            let size = resource.value(forKey: "fileSize") as? Int64 ?? 0
+            return total + size
         }
     }
 }
