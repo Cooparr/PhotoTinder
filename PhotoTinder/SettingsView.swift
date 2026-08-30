@@ -23,20 +23,16 @@ struct SettingsView: View {
             Form {
                 if hasCleanupStats {
                     Section("Statistics") {
+                        storageHero
                         cleanupRow(
                             icon: "photo.fill",
-                            label: "Photos deleted",
+                            label: "Photos cleared",
                             value: deletedPhotoCount.formatted()
                         )
                         cleanupRow(
                             icon: "video.fill",
-                            label: "Videos deleted",
+                            label: "Videos cleared",
                             value: deletedVideoCount.formatted()
-                        )
-                        cleanupRow(
-                            icon: "internaldrive.fill",
-                            label: "Storage freed",
-                            value: formattedBytes
                         )
                     }
                 }
@@ -88,6 +84,21 @@ struct SettingsView: View {
                     .frame(width: 20, height: 20)
             }
         }
+    }
+
+    private var storageHero: some View {
+        VStack(spacing: 4) {
+            Text(formattedBytes)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.tint)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+            Text("Storage freed")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
     }
 
     private func cleanupRow(icon: String, label: String, value: String) -> some View {
