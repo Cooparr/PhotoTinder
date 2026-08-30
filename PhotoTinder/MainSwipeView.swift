@@ -8,7 +8,6 @@ struct MainSwipeView: View {
     @Environment(SessionState.self) private var sessionState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
 
     @Query private var allDecisions: [AssetDecision]
 
@@ -72,9 +71,13 @@ struct MainSwipeView: View {
             guard !hasLoaded else { return }
             await loadInitial()
         }
-        .onAppear { refreshTotalCount() }
-        .onChange(of: scenePhase) { _, new in
-            if new == .active { refreshTotalCount() }
+        .onChange(of: photoLibrary.libraryVersion) { _, _ in
+            Task { await loadInitial() }
+        }
+        .onChange(of: photoLibrary.authState) { _, new in
+            if new == .authorized || new == .limited {
+                Task { await loadInitial() }
+            }
         }
         .onChange(of: filter) { _, _ in applyFilterChange() }
         .onChange(of: sort) { _, _ in applyFilterChange() }
@@ -380,14 +383,6 @@ struct MainSwipeView: View {
         decisionStore.remove(localIdentifier: lastId)
         currentIndex -= 1
         outgoingCards.removeAll()
-    }
-
-    private func refreshTotalCount() {
-        guard hasLoaded else { return }
-        let newTotal = photoLibrary.fetchAssets(sort: sort, filter: filter).count
-        if newTotal != totalLibraryCount {
-            totalLibraryCount = newTotal
-        }
     }
 
     private func applyFilterChange() {

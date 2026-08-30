@@ -54,8 +54,9 @@ enum MediaFilter: String, CaseIterable, Identifiable {
 }
 
 @Observable
-final class PhotoLibraryService {
+final class PhotoLibraryService: NSObject, PHPhotoLibraryChangeObserver {
     private(set) var authState: PhotoAuthState
+    private(set) var libraryVersion: Int = 0
 
     @ObservationIgnored
     private let imageCache: NSCache<NSString, UIImage> = {
@@ -64,8 +65,20 @@ final class PhotoLibraryService {
         return cache
     }()
 
-    init() {
+    override init() {
         authState = Self.map(PHPhotoLibrary.authorizationStatus(for: .readWrite))
+        super.init()
+        PHPhotoLibrary.shared().register(self)
+    }
+
+    deinit {
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
+    }
+
+    nonisolated func photoLibraryDidChange(_ changeInstance: PHChange) {
+        Task { @MainActor in
+            libraryVersion &+= 1
+        }
     }
 
     func cachedImage(for identifier: String) -> UIImage? {
