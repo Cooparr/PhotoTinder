@@ -8,6 +8,7 @@ struct MainSwipeView: View {
     @Environment(SessionState.self) private var sessionState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     @Query private var allDecisions: [AssetDecision]
 
@@ -67,6 +68,10 @@ struct MainSwipeView: View {
         .task {
             guard !hasLoaded else { return }
             await loadInitial()
+        }
+        .onAppear { refreshTotalCount() }
+        .onChange(of: scenePhase) { _, new in
+            if new == .active { refreshTotalCount() }
         }
         .fullScreenCover(item: $previewedAsset) { item in
             FullScreenPreviewView(asset: item.asset) {
@@ -350,6 +355,14 @@ struct MainSwipeView: View {
         decisionStore.remove(localIdentifier: lastId)
         currentIndex -= 1
         outgoing = nil
+    }
+
+    private func refreshTotalCount() {
+        guard hasLoaded else { return }
+        let newTotal = photoLibrary.fetchAssetsNewestFirst().count
+        if newTotal != totalLibraryCount {
+            totalLibraryCount = newTotal
+        }
     }
 
     private func loadInitial() async {
