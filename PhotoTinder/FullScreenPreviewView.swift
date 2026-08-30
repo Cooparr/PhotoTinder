@@ -122,22 +122,34 @@ struct FullScreenPreviewView: View {
             break
         case .changed:
             let target = accumulatedScale * update.scale
-            let newScale = min(max(target, 1), maxScale)
-            let ratio = newScale / accumulatedScale
+            let displayScale = rubberband(target, min: 1, max: maxScale)
+            let ratio = displayScale / accumulatedScale
             let f = update.startCentroid
             offset = CGSize(
                 width: update.translation.width + (1 - ratio) * f.x + ratio * accumulatedOffset.width,
                 height: update.translation.height + (1 - ratio) * f.y + ratio * accumulatedOffset.height
             )
-            scale = newScale
+            scale = displayScale
         case .ended:
+            let clamped = min(max(scale, 1), maxScale)
             withAnimation(.spring) {
-                accumulatedScale = scale
-                if accumulatedScale == 1 {
+                scale = clamped
+                accumulatedScale = clamped
+                if clamped == 1 {
                     offset = .zero
                 }
                 accumulatedOffset = offset
             }
+        }
+    }
+
+    private func rubberband(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {
+        if value < minValue {
+            return minValue - (minValue - value) * 0.5
+        } else if value > maxValue {
+            return maxValue + (value - maxValue) * 0.5
+        } else {
+            return value
         }
     }
 
