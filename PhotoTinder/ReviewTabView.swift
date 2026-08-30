@@ -162,7 +162,7 @@ struct ReviewTabView: View {
 
         let photoCount = assetsToDelete.count { $0.mediaType == .image }
         let videoCount = assetsToDelete.count { $0.mediaType == .video }
-        let bytesFreed = assetsToDelete.reduce(Int64(0)) { $0 + fileSize(of: $1) }
+        let bytesFreed = await Self.computeTotalFileSize(of: assetsToDelete)
 
         isDeleting = true
         do {
@@ -186,10 +186,18 @@ struct ReviewTabView: View {
         }
     }
 
-    private func fileSize(of asset: PHAsset) -> Int64 {
-        PHAssetResource.assetResources(for: asset).reduce(Int64(0)) { total, resource in
-            let size = resource.value(forKey: "fileSize") as? Int64 ?? 0
-            return total + size
+    private static func computeTotalFileSize(of assets: [PHAsset]) async -> Int64 {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let total = assets.reduce(Int64(0)) { runningTotal, asset in
+                    let assetSize = PHAssetResource.assetResources(for: asset)
+                        .reduce(Int64(0)) { sum, resource in
+                            sum + ((resource.value(forKey: "fileSize") as? Int64) ?? 0)
+                        }
+                    return runningTotal + assetSize
+                }
+                continuation.resume(returning: total)
+            }
         }
     }
 }
