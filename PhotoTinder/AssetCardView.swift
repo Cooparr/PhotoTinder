@@ -15,6 +15,10 @@ struct AssetCardView: View {
         asset.mediaType == .video
     }
 
+    private var isLivePhoto: Bool {
+        asset.mediaSubtypes.contains(.photoLive)
+    }
+
     var body: some View {
         RoundedRectangle(cornerRadius: 24)
             .fill(Color(.systemGray6))
@@ -28,6 +32,15 @@ struct AssetCardView: View {
                         }
                         LoopingVideoPlayerView(asset: asset)
                     }
+                } else if isLivePhoto && isTop {
+                    ZStack {
+                        if let image {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                        LivePhotoPlayerView(asset: asset)
+                    }
                 } else if let image {
                     Image(uiImage: image)
                         .resizable()
@@ -37,10 +50,8 @@ struct AssetCardView: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                if isVideo {
-                    videoBadge
-                        .padding(12)
-                }
+                mediaBadge
+                    .padding(12)
             }
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(radius: 8)
@@ -59,6 +70,15 @@ struct AssetCardView: View {
             }
     }
 
+    @ViewBuilder
+    private var mediaBadge: some View {
+        if isVideo {
+            videoBadge
+        } else if isLivePhoto {
+            liveBadge
+        }
+    }
+
     private var videoBadge: some View {
         HStack(spacing: 4) {
             Image(systemName: "play.fill")
@@ -67,6 +87,19 @@ struct AssetCardView: View {
                 .font(.caption2.weight(.semibold).monospacedDigit())
         }
         .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.55), in: Capsule())
+    }
+
+    private var liveBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "livephoto")
+                .font(.system(size: 10, weight: .bold))
+            Text("LIVE")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(.yellow)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(.black.opacity(0.55), in: Capsule())
