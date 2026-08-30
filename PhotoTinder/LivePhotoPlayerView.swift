@@ -5,18 +5,26 @@ import UIKit
 
 struct LivePhotoPlayerView: UIViewRepresentable {
     let asset: PHAsset
+    var contentMode: UIView.ContentMode = .scaleAspectFill
+    var replayTrigger: Int = 0
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(lastTrigger: replayTrigger) }
 
     func makeUIView(context: Context) -> PHLivePhotoView {
         let view = PHLivePhotoView()
-        view.contentMode = .scaleAspectFill
+        view.contentMode = contentMode
         view.clipsToBounds = true
         context.coordinator.load(for: asset, into: view)
         return view
     }
 
-    func updateUIView(_ uiView: PHLivePhotoView, context: Context) {}
+    func updateUIView(_ uiView: PHLivePhotoView, context: Context) {
+        uiView.contentMode = contentMode
+        if replayTrigger != context.coordinator.lastTrigger {
+            context.coordinator.lastTrigger = replayTrigger
+            uiView.startPlayback(with: .full)
+        }
+    }
 
     static func dismantleUIView(_ uiView: PHLivePhotoView, coordinator: Coordinator) {
         coordinator.cancel()
@@ -25,7 +33,12 @@ struct LivePhotoPlayerView: UIViewRepresentable {
     }
 
     final class Coordinator {
+        var lastTrigger: Int
         private var requestID: PHImageRequestID?
+
+        init(lastTrigger: Int) {
+            self.lastTrigger = lastTrigger
+        }
 
         func load(for asset: PHAsset, into view: PHLivePhotoView) {
             let options = PHLivePhotoRequestOptions()

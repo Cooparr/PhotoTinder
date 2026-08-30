@@ -17,6 +17,7 @@ struct FullScreenPreviewView: View {
     @State private var offset: CGSize = .zero
     @State private var accumulatedOffset: CGSize = .zero
     @State private var dismissOffset: CGSize = .zero
+    @State private var livePhotoReplayTrigger: Int = 0
 
     private let maxScale: CGFloat = 5
 
@@ -31,11 +32,17 @@ struct FullScreenPreviewView: View {
                 )
                 .allowsHitTesting(false)
         }
+        .overlay(alignment: .topLeading) {
+            if isLivePhoto {
+                liveBadge.padding(16)
+            }
+        }
         .overlay {
             PreviewGestureLayer(
                 onPinchPan: handlePinchPan,
                 onDrag: handleDrag,
-                onDoubleTap: toggleZoom
+                onDoubleTap: toggleZoom,
+                onLongPress: { livePhotoReplayTrigger += 1 }
             )
         }
         .safeAreaInset(edge: .top) { topBar }
@@ -53,7 +60,21 @@ struct FullScreenPreviewView: View {
     private var content: some View {
         if asset.mediaType == .video, let player {
             VideoPlayer(player: player)
-                .aspectRatio(videoAspectRatio, contentMode: .fit)
+                .aspectRatio(mediaAspectRatio, contentMode: .fit)
+        } else if isLivePhoto {
+            ZStack {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                }
+                LivePhotoPlayerView(
+                    asset: asset,
+                    contentMode: .scaleAspectFit,
+                    replayTrigger: livePhotoReplayTrigger
+                )
+            }
+            .aspectRatio(mediaAspectRatio, contentMode: .fit)
         } else if let image {
             Image(uiImage: image)
                 .resizable()
@@ -65,9 +86,26 @@ struct FullScreenPreviewView: View {
         }
     }
 
-    private var videoAspectRatio: CGFloat {
+    private var isLivePhoto: Bool {
+        asset.mediaSubtypes.contains(.photoLive)
+    }
+
+    private var mediaAspectRatio: CGFloat {
         guard asset.pixelHeight > 0 else { return 9.0 / 16.0 }
         return CGFloat(asset.pixelWidth) / CGFloat(asset.pixelHeight)
+    }
+
+    private var liveBadge: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "livephoto")
+                .font(.system(size: 10, weight: .bold))
+            Text("LIVE")
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundStyle(.yellow)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.55), in: Capsule())
     }
 
     private var topBar: some View {
@@ -249,12 +287,14 @@ private struct PreviewGestureLayer: UIViewRepresentable {
     let onPinchPan: (PinchPanUpdate) -> Void
     let onDrag: (DragUpdate) -> Void
     let onDoubleTap: () -> Void
+    let onLongPress: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             onPinchPan: onPinchPan,
             onDrag: onDrag,
-            onDoubleTap: onDoubleTap
+            onDoubleTap: onDoubleTap,
+            onLongPress: onLongPress
         )
     }
 
@@ -296,7 +336,16 @@ private struct PreviewGestureLayer: UIViewRepresentable {
         doubleTap.delegate = context.coordinator
         view.addGestureRecognizer(doubleTap)
 
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = 0.3
+        longPress.delegate = context.coordinator
+        view.addGestureRecognizer(longPress)
+
         onePan.require(toFail: doubleTap)
+        onePan.require(toFail: longPress)
 
         context.coordinator.pinch = pinch
         context.coordinator.twoPan = twoPan
@@ -310,12 +359,14 @@ private struct PreviewGestureLayer: UIViewRepresentable {
         context.coordinator.onPinchPan = onPinchPan
         context.coordinator.onDrag = onDrag
         context.coordinator.onDoubleTap = onDoubleTap
+        context.coordinator.onLongPress = onLongPress
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onPinchPan: (PinchPanUpdate) -> Void
         var onDrag: (DragUpdate) -> Void
         var onDoubleTap: () -> Void
+        var onLongPress: () -> Void
 
         weak var pinch: UIPinchGestureRecognizer?
         weak var twoPan: UIPanGestureRecognizer?
@@ -328,11 +379,13 @@ private struct PreviewGestureLayer: UIViewRepresentable {
         init(
             onPinchPan: @escaping (PinchPanUpdate) -> Void,
             onDrag: @escaping (DragUpdate) -> Void,
-            onDoubleTap: @escaping () -> Void
+            onDoubleTap: @escaping () -> Void,
+            onLongPress: @escaping () -> Void
         ) {
             self.onPinchPan = onPinchPan
             self.onDrag = onDrag
             self.onDoubleTap = onDoubleTap
+            self.onLongPress = onLongPress
         }
 
         // Let pinch + two-finger pan run simultaneously; keep single-finger pan
@@ -413,6 +466,12 @@ private struct PreviewGestureLayer: UIViewRepresentable {
         @objc func handleDoubleTap(_ gr: UITapGestureRecognizer) {
             if gr.state == .recognized {
                 onDoubleTap()
+            }
+        }
+
+        @objc func handleLongPress(_ gr: UILongPressGestureRecognizer) {
+            if gr.state == .began {
+                onLongPress()
             }
         }
     }
