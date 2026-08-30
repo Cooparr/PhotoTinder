@@ -7,7 +7,6 @@ struct SettingsView: View {
     @AppStorage("deletedPhotoCount") private var deletedPhotoCount: Int = 0
     @AppStorage("deletedVideoCount") private var deletedVideoCount: Int = 0
     @AppStorage("deletedBytes") private var deletedBytes: Double = 0
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
 
@@ -21,7 +20,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 if hasCleanupStats {
-                    Section("Cleanup so far") {
+                    Section("Stats") {
                         cleanupRow(
                             icon: "photo.fill",
                             label: "Photos deleted",
@@ -40,11 +39,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Feedback") {
-                    Toggle("Haptic feedback", isOn: $hapticsEnabled)
-                }
-
-                Section {
+                Section("Settings") {
                     Button {
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             openURL(url)
@@ -53,6 +48,10 @@ struct SettingsView: View {
                         Label("App Settings", systemImage: "apps.iphone")
                     }
 
+                    Toggle("Haptic feedback", isOn: $hapticsEnabled)
+                }
+
+                Section("Social") {
                     ShareLink(item: shareMessage) {
                         Label("Share with friends", systemImage: "square.and.arrow.up.fill")
                     }
@@ -66,11 +65,6 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
     }
 
