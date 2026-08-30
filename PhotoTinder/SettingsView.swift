@@ -4,9 +4,11 @@ import UIKit
 
 struct SettingsView: View {
     @AppStorage("hapticsEnabled") private var hapticsEnabled: Bool = true
+    @AppStorage("appTheme") private var theme: AppTheme = .blue
     @AppStorage("deletedPhotoCount") private var deletedPhotoCount: Int = 0
     @AppStorage("deletedVideoCount") private var deletedVideoCount: Int = 0
     @AppStorage("deletedBytes") private var deletedBytes: Double = 0
+    @State private var showingThemeSheet: Bool = false
     @Environment(\.requestReview) private var requestReview
     @Environment(\.openURL) private var openURL
 
@@ -20,7 +22,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 if hasCleanupStats {
-                    Section("Stats") {
+                    Section("Statistics") {
                         cleanupRow(
                             icon: "photo.fill",
                             label: "Photos deleted",
@@ -48,6 +50,8 @@ struct SettingsView: View {
                         Label("App Settings", systemImage: "apps.iphone")
                     }
 
+                    themeRow
+
                     Toggle("Haptic feedback", isOn: $hapticsEnabled)
                 }
 
@@ -65,6 +69,24 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingThemeSheet) {
+                ThemeSheetView(theme: $theme)
+            }
+        }
+    }
+
+    private var themeRow: some View {
+        Button {
+            showingThemeSheet = true
+        } label: {
+            HStack {
+                Label("Theme", systemImage: "paintbrush.fill")
+                    .foregroundStyle(.primary)
+                Spacer()
+                Circle()
+                    .fill(theme.color)
+                    .frame(width: 20, height: 20)
+            }
         }
     }
 

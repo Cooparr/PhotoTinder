@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(PhotoLibraryService.self) private var photoLibrary
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("appTheme") private var theme: AppTheme = .blue
 
     var body: some View {
         Group {
@@ -15,6 +16,7 @@ struct RootView: View {
                 PermissionDeniedView()
             }
         }
+        .tint(theme.color)
         .animation(.default, value: photoLibrary.authState)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
